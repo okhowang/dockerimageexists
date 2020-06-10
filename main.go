@@ -16,7 +16,9 @@ import (
 func main() {
 	image := flag.String("image", "", "docker image")
 	username := flag.String("username", "", "username")
+	usernameFile := flag.String("username_file", "", "username from file")
 	password := flag.String("password", "", "password")
+	passwordFile := flag.String("password_file", "", "password from file")
 	outFile := flag.String("outfile", "", "output to file if found")
 	exitCode := flag.Int("exit_code", 0, "exit code when image not found")
 	flag.Parse()
@@ -62,6 +64,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *usernameFile != "" {
+		data, err := ioutil.ReadFile(*usernameFile)
+		if err != nil {
+			fmt.Printf("readfile %s error:%s\n", *usernameFile, err)
+			os.Exit(1)
+		}
+		*username = string(data)
+	}
+	if *passwordFile != "" {
+		data, err := ioutil.ReadFile(*passwordFile)
+		if err != nil {
+			fmt.Printf("readfile %s error:%s\n", *passwordFile, err)
+			os.Exit(1)
+		}
+		*password = string(data)
+	}
 	autoConfig := &types.AuthConfig{
 		Username: *username,
 		Password: *password,
