@@ -18,6 +18,7 @@ func main() {
 	username := flag.String("username", "", "username")
 	password := flag.String("password", "", "password")
 	outFile := flag.String("outfile", "", "output to file if found")
+	exitCode := flag.Int("exit_code", 0, "exit code when image not found")
 	flag.Parse()
 
 	flag.VisitAll(func(f *flag.Flag) {
@@ -90,4 +91,5 @@ func main() {
 		return
 	}
 	fmt.Printf("No more endpoint\n")
+	os.Exit(*exitCode)
 }
