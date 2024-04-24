@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
-	"github.com/docker/distribution/reference"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/distribution"
-	"github.com/docker/docker/registry"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/docker/distribution/reference"
+	"github.com/docker/distribution/registry/api/errcode"
+	v2 "github.com/docker/distribution/registry/api/v2"
+	apiregistry "github.com/docker/docker/api/types/registry"
+	"github.com/docker/docker/distribution"
+	"github.com/docker/docker/registry"
 )
 
 func main() {
@@ -52,18 +56,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	endpoints, err := registryService.LookupPullEndpoints(reference.Domain(named))
-	if err != nil {
-		fmt.Printf("LookupPullEndpoints error:%s\n", err)
-		os.Exit(1)
-	}
-
-	repoInfo, err := registryService.ResolveRepository(named)
-	if err != nil {
-		fmt.Printf("ResolveRepository error:%s\n", err)
-		os.Exit(1)
-	}
-
 	if *usernameFile != "" {
 		data, err := ioutil.ReadFile(*usernameFile)
 		if err != nil {
@@ -80,34 +72,39 @@ func main() {
 		}
 		*password = string(data)
 	}
-	autoConfig := &types.AuthConfig{
+	autoConfig := &apiregistry.AuthConfig{
 		Username: *username,
 		Password: *password,
 	}
-	for _, endpoint := range endpoints {
-		if endpoint.Version == registry.APIVersion1 {
-			continue
-		}
-		repository, _, err := distribution.NewV2Repository(ctx, repoInfo, endpoint, nil, autoConfig, "pull")
-		if err != nil {
-			fmt.Printf("NewV2Repository error:%s\n", err)
-			continue
-		}
-		tag, err := repository.Tags(ctx).Get(ctx, tagged.Tag())
-		if err != nil {
-			fmt.Printf("GetTag error:%+v\n", err)
-			continue
-		}
-		fmt.Printf("%+v\n", tag)
-		if *outFile != "" {
-			err = ioutil.WriteFile(*outFile, []byte{}, 0644)
-			if err != nil {
-				fmt.Printf("WriteFile err:%s\n", err)
-				os.Exit(1)
-			}
-		}
-		return
+	repository, err := distribution.GetRepository(ctx, named, &distribution.ImagePullConfig{
+		Config: distribution.Config{
+			RegistryService: registryService,
+			AuthConfig:      autoConfig,
+		},
+	})
+	if err != nil {
+		fmt.Printf("NewV2Repository error:%s\n", err)
+		os.Exit(1)
 	}
-	fmt.Printf("No more endpoint\n")
-	os.Exit(*exitCode)
+	tag, err := repository.Tags(ctx).Get(ctx, tagged.Tag())
+	if err != nil {
+		var errs errcode.Errors
+		var apiErr errcode.Error
+		if errors.As(err, &errs) && errs.Len() == 1 && errors.As(errs[0], &apiErr) &&
+			errors.Is(apiErr.Code, v2.ErrorCodeManifestUnknown) {
+			fmt.Printf("Image not found\n")
+			os.Exit(*exitCode)
+		}
+		fmt.Printf("GetTag error:%+v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("%+v\n", tag)
+	if *outFile != "" {
+		err = ioutil.WriteFile(*outFile, []byte{}, 0644)
+		if err != nil {
+			fmt.Printf("WriteFile err:%s\n", err)
+			os.Exit(1)
+		}
+	}
+	return
 }
