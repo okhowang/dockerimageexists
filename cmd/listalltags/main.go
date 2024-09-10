@@ -66,7 +66,7 @@ func main() {
 		Username: *username,
 		Password: *password,
 	}
-	repository, err := distribution.GetRepository(ctx, named, &distribution.ImagePullConfig{
+	repositories, err := distribution.GetRepositories(ctx, named, &distribution.ImagePullConfig{
 		Config: distribution.Config{
 			RegistryService: registryService,
 			AuthConfig:      autoConfig,
@@ -76,12 +76,15 @@ func main() {
 		fmt.Printf("NewV2Repository error:%s\n", err)
 		os.Exit(1)
 	}
-	tags, err := repository.Tags(ctx).All(ctx)
-	if err != nil {
-		fmt.Printf("GetTag error:%+v\n", err)
-		os.Exit(1)
-	}
-	for _, tag := range tags {
-		fmt.Println(tag)
+	for _, repository := range repositories {
+		tags, err := repository.Tags(ctx).All(ctx)
+		if err != nil {
+			fmt.Printf("GetTag error:%+v\n", err)
+			os.Exit(1)
+		}
+		for _, tag := range tags {
+			fmt.Println(tag)
+		}
+		return
 	}
 }

@@ -76,7 +76,7 @@ func main() {
 		Username: *username,
 		Password: *password,
 	}
-	repository, err := distribution.GetRepository(ctx, named, &distribution.ImagePullConfig{
+	repositories, err := distribution.GetRepositories(ctx, named, &distribution.ImagePullConfig{
 		Config: distribution.Config{
 			RegistryService: registryService,
 			AuthConfig:      autoConfig,
@@ -86,25 +86,27 @@ func main() {
 		fmt.Printf("NewV2Repository error:%s\n", err)
 		os.Exit(1)
 	}
-	tag, err := repository.Tags(ctx).Get(ctx, tagged.Tag())
-	if err != nil {
-		var errs errcode.Errors
-		var apiErr errcode.Error
-		if errors.As(err, &errs) && errs.Len() == 1 && errors.As(errs[0], &apiErr) &&
-			errors.Is(apiErr.Code, v2.ErrorCodeManifestUnknown) {
-			fmt.Printf("Image not found\n")
-			os.Exit(*exitCode)
-		}
-		fmt.Printf("GetTag error:%+v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("%+v\n", tag)
-	if *outFile != "" {
-		err = ioutil.WriteFile(*outFile, []byte{}, 0644)
+	for _, repository := range repositories {
+		tag, err := repository.Tags(ctx).Get(ctx, tagged.Tag())
 		if err != nil {
-			fmt.Printf("WriteFile err:%s\n", err)
+			var errs errcode.Errors
+			var apiErr errcode.Error
+			if errors.As(err, &errs) && errs.Len() == 1 && errors.As(errs[0], &apiErr) &&
+				errors.Is(apiErr.Code, v2.ErrorCodeManifestUnknown) {
+				fmt.Printf("Image not found\n")
+				os.Exit(*exitCode)
+			}
+			fmt.Printf("GetTag error:%+v\n", err)
 			os.Exit(1)
 		}
+		fmt.Printf("%+v\n", tag)
+		if *outFile != "" {
+			err = ioutil.WriteFile(*outFile, []byte{}, 0644)
+			if err != nil {
+				fmt.Printf("WriteFile err:%s\n", err)
+				os.Exit(1)
+			}
+		}
+		return
 	}
-	return
 }
